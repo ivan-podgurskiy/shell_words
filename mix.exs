@@ -44,7 +44,7 @@ defmodule ShellWords.MixProject do
   end
 
   defp description do
-    "Replace with a one-line description of your internal library."
+    "POSIX-like shell word splitting, escaping, and joining. An Elixir take on Python's shlex and Ruby's Shellwords."
   end
 
   defp package do
@@ -60,7 +60,7 @@ defmodule ShellWords.MixProject do
       main: "ShellWords",
       source_ref: "v#{@version}",
       source_url: @source_url,
-      extras: ["README.md", "CHANGELOG.md"]
+      extras: ["README.md", "CHANGELOG.md", "LICENSE"]
     ]
   end
 end

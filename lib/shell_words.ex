@@ -2,9 +2,51 @@ defmodule ShellWords do
   @moduledoc """
   POSIX-like shell word splitting, escaping, and joining.
 
-  Inspired by Python's `shlex` and Ruby's `Shellwords`. This is not a shell
-  interpreter: no execution, pipes, redirects, expansion, substitution,
-  globbing, or comments.
+  Inspired by Python's `shlex` (`split`/`quote`/`join`) and Ruby's
+  `Shellwords`, with an Elixir-native API:
+
+    * `split/2` / `split!/2` — parse a shell-like command string into words
+    * `escape/1` — make one argument safe as a single shell word
+    * `join/1` — escape and join argv into one shell-safe string
+
+  ## Examples
+
+      iex> ShellWords.split(~S(cp "my file.txt" /tmp))
+      {:ok, ["cp", "my file.txt", "/tmp"]}
+
+      iex> ShellWords.join(["git", "commit", "-m", "initial commit"])
+      "git commit -m 'initial commit'"
+
+  ## Scope
+
+  This is not a shell interpreter. There is no command execution, pipe or
+  redirect handling, variable expansion, command substitution, globbing,
+  tilde expansion, or comment parsing. `#` is an ordinary character.
+
+  Only POSIX-like shells are targeted; there is no Windows `cmd.exe` or
+  PowerShell escaping.
+
+  ## Security
+
+  Prefer argv-based command execution when possible:
+
+      System.cmd("echo", ["hello world"])
+
+  Use `escape/1` or `join/1` only when you must build a shell command
+  string. The core guarantee, verified by property-based tests, is the
+  round trip:
+
+      ShellWords.split(ShellWords.join(argv)) == {:ok, argv}
+
+  for every list of valid UTF-8 strings.
+
+  ## Details
+
+  Word separators are exactly ASCII space, tab, newline, and carriage
+  return; Unicode whitespace is an ordinary character. Backslash-newline is
+  not line continuation: the newline is kept as a literal character. Error
+  positions are 0-based byte offsets. Behavior on invalid UTF-8 input is
+  unspecified and may change.
   """
 
   alias ShellWords.ParseError
