@@ -181,4 +181,26 @@ defmodule ShellWordsTest do
                ShellWords.split("echo \"hello\\")
     end
   end
+
+  describe "split/2 — backslash outside quotes" do
+    test "escapes the next character unconditionally" do
+      assert ShellWords.split(~S(echo hello\ world)) == {:ok, ["echo", "hello world"]}
+      assert ShellWords.split(~S(echo \#)) == {:ok, ["echo", "#"]}
+      assert ShellWords.split(~S(echo \')) == {:ok, ["echo", "'"]}
+      assert ShellWords.split(~S(echo \")) == {:ok, ["echo", ~S(")]}
+      assert ShellWords.split(~S(echo a\\b)) == {:ok, ["echo", ~S(a\b)]}
+    end
+
+    test "an escaped newline is a literal newline, not continuation" do
+      assert ShellWords.split("echo a\\\nb") == {:ok, ["echo", "a\nb"]}
+    end
+
+    test "a trailing backslash reports its own position" do
+      assert {:error, %ShellWords.ParseError{reason: :trailing_escape, position: 10}} =
+               ShellWords.split("echo hello\\")
+
+      assert {:error, %ShellWords.ParseError{reason: :trailing_escape, position: 0}} =
+               ShellWords.split("\\")
+    end
+  end
 end

@@ -114,6 +114,14 @@ defmodule ShellWords do
     {:ok, Enum.reverse(finish_word(word, acc, started?))}
   end
 
+  defp bare(<<"\\">>, pos, _word, _acc, _started?) do
+    {:error, ParseError.new(:trailing_escape, pos)}
+  end
+
+  defp bare(<<"\\", c, rest::binary>>, pos, word, acc, _started?) do
+    bare(rest, pos + 2, <<word::binary, c>>, acc, true)
+  end
+
   defp bare(<<"'", rest::binary>>, pos, word, acc, _started?) do
     single(rest, pos + 1, pos, word, acc)
   end
