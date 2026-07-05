@@ -46,4 +46,26 @@ defmodule ShellWordsTest do
       assert ShellWords.escape("日本語") == ~S('日本語')
     end
   end
+
+  describe "join/1" do
+    test "empty argv returns empty string" do
+      assert ShellWords.join([]) == ""
+    end
+
+    test "single safe argument" do
+      assert ShellWords.join(["ls"]) == "ls"
+    end
+
+    test "multiple arguments, quoting only where needed" do
+      assert ShellWords.join(["echo", "hello world"]) == "echo 'hello world'"
+
+      assert ShellWords.join(["git", "commit", "-m", "initial commit"]) ==
+               "git commit -m 'initial commit'"
+    end
+
+    test "arguments with quotes and empties" do
+      assert ShellWords.join(["printf", "%s", "don't", ""]) ==
+               ~S(printf %s 'don'"'"'t' '')
+    end
+  end
 end

@@ -45,6 +45,24 @@ defmodule ShellWords do
     end
   end
 
+  @doc """
+  Escapes each argument with `escape/1` and joins them with single spaces,
+  producing one shell-safe command string.
+
+  ## Examples
+
+      iex> ShellWords.join(["echo", "hello world"])
+      "echo 'hello world'"
+
+      iex> ShellWords.join([])
+      ""
+
+  """
+  @spec join([String.t()]) :: String.t()
+  def join(argv) when is_list(argv) do
+    Enum.map_join(argv, " ", &escape/1)
+  end
+
   defp safe_bare_word?(<<>>), do: true
   defp safe_bare_word?(<<c, rest::binary>>) when c in @safe_chars, do: safe_bare_word?(rest)
   defp safe_bare_word?(_), do: false
