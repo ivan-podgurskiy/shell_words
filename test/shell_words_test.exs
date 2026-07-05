@@ -203,4 +203,26 @@ defmodule ShellWordsTest do
                ShellWords.split("\\")
     end
   end
+
+  describe "split/2 — adjacency" do
+    test "adjacent quoted and unquoted segments form one word" do
+      assert ShellWords.split(~S(echo foo"bar"baz)) == {:ok, ["echo", "foobarbaz"]}
+      assert ShellWords.split(~S(echo 'foo'"bar")) == {:ok, ["echo", "foobar"]}
+      assert ShellWords.split(~S(echo foo'bar')) == {:ok, ["echo", "foobar"]}
+      assert ShellWords.split(~S(a"b"'c'\ d)) == {:ok, ["abc d"]}
+    end
+
+    test "empty quoted segments adjacent to content do not split the word" do
+      assert ShellWords.split(~S(echo foo""bar)) == {:ok, ["echo", "foobar"]}
+      assert ShellWords.split(~S(echo ''"")) == {:ok, ["echo", ""]}
+    end
+
+    test "consecutive quoted empties separated by space are separate empty words" do
+      assert ShellWords.split(~S(echo "" '')) == {:ok, ["echo", "", ""]}
+    end
+
+    test "a standalone escaped whitespace character forms its own word" do
+      assert ShellWords.split(~S(echo \  b)) == {:ok, ["echo", " ", "b"]}
+    end
+  end
 end
