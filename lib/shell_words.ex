@@ -110,12 +110,30 @@ defmodule ShellWords do
     {:ok, Enum.reverse(finish_word(word, acc, started?))}
   end
 
+  defp bare(<<"'", rest::binary>>, pos, word, acc, _started?) do
+    single(rest, pos + 1, pos, word, acc)
+  end
+
   defp bare(<<c, rest::binary>>, pos, word, acc, started?) when c in @whitespace do
     bare(rest, pos + 1, "", finish_word(word, acc, started?), false)
   end
 
   defp bare(<<c, rest::binary>>, pos, word, acc, _started?) do
     bare(rest, pos + 1, <<word::binary, c>>, acc, true)
+  end
+
+  # State: single — inside single quotes. Everything is literal until the
+  # closing quote; open_pos is the offset of the opening quote.
+  defp single(<<>>, _pos, open_pos, _word, _acc) do
+    {:error, ParseError.new(:unterminated_single_quote, open_pos)}
+  end
+
+  defp single(<<"'", rest::binary>>, pos, _open_pos, word, acc) do
+    bare(rest, pos + 1, word, acc, true)
+  end
+
+  defp single(<<c, rest::binary>>, pos, open_pos, word, acc) do
+    single(rest, pos + 1, open_pos, <<word::binary, c>>, acc)
   end
 
   defp finish_word(_word, acc, false), do: acc

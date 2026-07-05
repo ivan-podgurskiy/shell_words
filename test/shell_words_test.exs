@@ -114,4 +114,31 @@ defmodule ShellWordsTest do
       assert ShellWords.split("echo", []) == {:ok, ["echo"]}
     end
   end
+
+  describe "split/2 — single quotes" do
+    test "preserves whitespace inside quotes" do
+      assert ShellWords.split(~S(echo 'hello world')) == {:ok, ["echo", "hello world"]}
+    end
+
+    test "everything is literal inside single quotes, including backslashes" do
+      assert ShellWords.split(~S(echo 'a\b')) == {:ok, ["echo", ~S(a\b)]}
+      assert ShellWords.split(~S(echo '$HOME `x` "y"')) == {:ok, ["echo", ~S($HOME `x` "y")]}
+    end
+
+    test "newlines inside single quotes are preserved" do
+      assert ShellWords.split("echo 'line1\nline2'") == {:ok, ["echo", "line1\nline2"]}
+    end
+
+    test "empty single-quoted string produces an empty word" do
+      assert ShellWords.split("echo ''") == {:ok, ["echo", ""]}
+    end
+
+    test "unterminated single quote reports the opening quote position" do
+      assert {:error, %ShellWords.ParseError{reason: :unterminated_single_quote, position: 5}} =
+               ShellWords.split(~S(echo 'hello))
+
+      assert {:error, %ShellWords.ParseError{reason: :unterminated_single_quote, position: 0}} =
+               ShellWords.split("'")
+    end
+  end
 end
