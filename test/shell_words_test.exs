@@ -225,4 +225,27 @@ defmodule ShellWordsTest do
       assert ShellWords.split(~S(echo \  b)) == {:ok, ["echo", " ", "b"]}
     end
   end
+
+  describe "split!/2" do
+    test "returns the word list directly on success" do
+      assert ShellWords.split!(~S(echo "hello world")) == ["echo", "hello world"]
+      assert ShellWords.split!("") == []
+    end
+
+    test "raises ShellWords.ParseError on parse errors" do
+      assert_raise ShellWords.ParseError, "unterminated double quote at byte 5", fn ->
+        ShellWords.split!(~S(echo "hello))
+      end
+
+      assert_raise ShellWords.ParseError, "trailing escape at byte 10", fn ->
+        ShellWords.split!("echo hello\\")
+      end
+    end
+
+    test "propagates option validation" do
+      assert_raise ArgumentError, fn ->
+        ShellWords.split!("echo", comments: true)
+      end
+    end
+  end
 end

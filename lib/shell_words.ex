@@ -39,6 +39,24 @@ defmodule ShellWords do
   end
 
   @doc """
+  Like `split/2`, but returns the word list directly and raises
+  `ShellWords.ParseError` on parse errors.
+
+  ## Examples
+
+      iex> ShellWords.split!(~S(echo "hello world"))
+      ["echo", "hello world"]
+
+  """
+  @spec split!(String.t(), keyword()) :: [String.t()]
+  def split!(input, opts \\ []) do
+    case split(input, opts) do
+      {:ok, words} -> words
+      {:error, error} -> raise error
+    end
+  end
+
+  @doc """
   Escapes a string so a POSIX shell parses it back as a single word with the
   original content.
 
