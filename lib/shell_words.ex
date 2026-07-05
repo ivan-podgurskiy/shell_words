@@ -1,21 +1,51 @@
 defmodule ShellWords do
   @moduledoc """
-  Public API surface for this library.
+  POSIX-like shell word splitting, escaping, and joining.
 
-  Replace this module (and the app name in `mix.exs`) with your domain code.
-  Keep the surface small—split into additional modules only when the package
-  truly needs more than one concern.
+  Inspired by Python's `shlex` and Ruby's `Shellwords`. This is not a shell
+  interpreter: no execution, pipes, redirects, expansion, substitution,
+  globbing, or comments.
   """
 
+  # Exactly Python shlex.quote's safe set. Anything outside it (including all
+  # whitespace, control characters, and non-ASCII bytes) forces quoting.
+  @safe_chars ~c(ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@%+=:,./_-)
+
   @doc """
-  Example pure function with doctest and property-test-friendly behavior.
+  Escapes a string so a POSIX shell parses it back as a single word with the
+  original content.
+
+  Returns the string unchanged only when it is non-empty and consists solely
+  of unambiguously safe ASCII characters; otherwise wraps it in single quotes,
+  escaping embedded single quotes. The empty string becomes `"''"`.
+
+  Output style matches Python's `shlex.quote` (single-quote wrapping), not
+  Ruby's backslash-style `Shellwords.escape`.
 
   ## Examples
 
-      iex> ShellWords.example(21)
-      42
+      iex> ShellWords.escape("hello")
+      "hello"
+
+      iex> ShellWords.escape("hello world")
+      "'hello world'"
+
+      iex> ShellWords.escape("")
+      "''"
 
   """
-  @spec example(integer()) :: integer()
-  def example(n) when is_integer(n), do: n * 2
+  @spec escape(String.t()) :: String.t()
+  def escape(""), do: "''"
+
+  def escape(arg) when is_binary(arg) do
+    if safe_bare_word?(arg) do
+      arg
+    else
+      "'" <> String.replace(arg, "'", ~S('"'"')) <> "'"
+    end
+  end
+
+  defp safe_bare_word?(<<>>), do: true
+  defp safe_bare_word?(<<c, rest::binary>>) when c in @safe_chars, do: safe_bare_word?(rest)
+  defp safe_bare_word?(_), do: false
 end
