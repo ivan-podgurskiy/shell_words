@@ -103,6 +103,10 @@ defmodule ShellWords do
   # Word separators: exactly ASCII space, tab, newline, carriage return.
   @whitespace ~c( \t\n\r)
 
+  # Characters whose backslash-escape is honored inside double quotes
+  # (POSIX 2.2.3); a backslash before anything else is preserved literally.
+  @dquote_escapable ~c($`"\\)
+
   # State: bare — outside any quotes.
   # word is the word built so far; started? distinguishes "no word open"
   # from "word open but currently empty" (needed for '' and "").
@@ -112,6 +116,10 @@ defmodule ShellWords do
 
   defp bare(<<"'", rest::binary>>, pos, word, acc, _started?) do
     single(rest, pos + 1, pos, word, acc)
+  end
+
+  defp bare(<<"\"", rest::binary>>, pos, word, acc, _started?) do
+    double(rest, pos + 1, pos, word, acc)
   end
 
   defp bare(<<c, rest::binary>>, pos, word, acc, started?) when c in @whitespace do
@@ -134,6 +142,34 @@ defmodule ShellWords do
 
   defp single(<<c, rest::binary>>, pos, open_pos, word, acc) do
     single(rest, pos + 1, open_pos, <<word::binary, c>>, acc)
+  end
+
+  # State: double — inside double quotes. Backslash escapes only
+  # @dquote_escapable; any other backslash sequence passes through with the
+  # backslash preserved. open_pos is the offset of the opening quote.
+  defp double(<<>>, _pos, open_pos, _word, _acc) do
+    {:error, ParseError.new(:unterminated_double_quote, open_pos)}
+  end
+
+  defp double(<<"\\">>, _pos, open_pos, _word, _acc) do
+    {:error, ParseError.new(:unterminated_double_quote, open_pos)}
+  end
+
+  defp double(<<"\\", c, rest::binary>>, pos, open_pos, word, acc)
+       when c in @dquote_escapable do
+    double(rest, pos + 2, open_pos, <<word::binary, c>>, acc)
+  end
+
+  defp double(<<"\\", c, rest::binary>>, pos, open_pos, word, acc) do
+    double(rest, pos + 2, open_pos, <<word::binary, ?\\, c>>, acc)
+  end
+
+  defp double(<<"\"", rest::binary>>, pos, _open_pos, word, acc) do
+    bare(rest, pos + 1, word, acc, true)
+  end
+
+  defp double(<<c, rest::binary>>, pos, open_pos, word, acc) do
+    double(rest, pos + 1, open_pos, <<word::binary, c>>, acc)
   end
 
   defp finish_word(_word, acc, false), do: acc

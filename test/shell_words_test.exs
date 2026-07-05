@@ -141,4 +141,44 @@ defmodule ShellWordsTest do
                ShellWords.split("'")
     end
   end
+
+  describe "split/2 — double quotes" do
+    test "preserves whitespace inside quotes" do
+      assert ShellWords.split(~S(echo "hello world")) == {:ok, ["echo", "hello world"]}
+    end
+
+    test "the four POSIX escapes: dollar, backtick, double quote, backslash" do
+      assert ShellWords.split(~S(echo "price: \$5")) == {:ok, ["echo", "price: $5"]}
+      assert ShellWords.split(~S(echo "tick: \`x\`")) == {:ok, ["echo", "tick: `x`"]}
+      assert ShellWords.split(~S(echo "hello \"Ivan\"")) == {:ok, ["echo", ~S(hello "Ivan")]}
+      assert ShellWords.split(~S(echo "a\\b")) == {:ok, ["echo", ~S(a\b)]}
+    end
+
+    test "backslash before any other character passes both through literally" do
+      assert ShellWords.split(~S(echo "back\slash")) == {:ok, ["echo", ~S(back\slash)]}
+      assert ShellWords.split(~S(echo "a\ b")) == {:ok, ["echo", ~S(a\ b)]}
+      # backslash-newline is NOT line continuation: both characters survive
+      assert ShellWords.split("echo \"a\\\nb\"") == {:ok, ["echo", "a\\\nb"]}
+      # backslash before a multibyte character: byte-level pass-through stays intact
+      assert ShellWords.split(~S(echo "a\é")) == {:ok, ["echo", ~S(a\é)]}
+    end
+
+    test "empty double-quoted string produces an empty word" do
+      assert ShellWords.split(~S(echo "")) == {:ok, ["echo", ""]}
+    end
+
+    test "newlines inside double quotes are preserved" do
+      assert ShellWords.split("echo \"line1\nline2\"") == {:ok, ["echo", "line1\nline2"]}
+    end
+
+    test "unterminated double quote reports the opening quote position" do
+      assert {:error, %ShellWords.ParseError{reason: :unterminated_double_quote, position: 5}} =
+               ShellWords.split(~S(echo "hello))
+
+      # a lone trailing backslash inside double quotes is still an
+      # unterminated double quote (anchored at the opening quote)
+      assert {:error, %ShellWords.ParseError{reason: :unterminated_double_quote, position: 5}} =
+               ShellWords.split("echo \"hello\\")
+    end
+  end
 end
