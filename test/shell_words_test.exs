@@ -68,4 +68,50 @@ defmodule ShellWordsTest do
                ~S(printf %s 'don'"'"'t' '')
     end
   end
+
+  describe "split/2 — bare words and whitespace" do
+    test "simple words" do
+      assert ShellWords.split("echo hello") == {:ok, ["echo", "hello"]}
+      assert ShellWords.split("ls -la /tmp") == {:ok, ["ls", "-la", "/tmp"]}
+    end
+
+    test "runs of whitespace collapse; leading/trailing ignored" do
+      assert ShellWords.split("  echo    hello  ") == {:ok, ["echo", "hello"]}
+    end
+
+    test "tab, newline, and carriage return separate words" do
+      assert ShellWords.split("a\tb\nc\rd") == {:ok, ["a", "b", "c", "d"]}
+      assert ShellWords.split("a \t\r\n b") == {:ok, ["a", "b"]}
+    end
+
+    test "empty and whitespace-only input yield an empty list" do
+      assert ShellWords.split("") == {:ok, []}
+      assert ShellWords.split("   \t\n\r ") == {:ok, []}
+    end
+
+    test "Unicode whitespace is an ordinary character, not a separator" do
+      # U+00A0 no-break space, U+2003 em space
+      assert ShellWords.split("a\u00A0b") == {:ok, ["a\u00A0b"]}
+      assert ShellWords.split("a\u2003b") == {:ok, ["a\u2003b"]}
+    end
+
+    test "multibyte UTF-8 words reassemble intact" do
+      assert ShellWords.split("caf\u00E9 \u00FCber") == {:ok, ["caf\u00E9", "\u00FCber"]}
+    end
+
+    test "# is an ordinary character" do
+      assert ShellWords.split("echo hello # comment") ==
+               {:ok, ["echo", "hello", "#", "comment"]}
+    end
+
+    test "unknown options raise ArgumentError" do
+      assert_raise ArgumentError, fn ->
+        ShellWords.split("echo", comments: true)
+      end
+    end
+
+    test "empty options list is accepted" do
+      assert ShellWords.split("echo", []) == {:ok, ["echo"]}
+    end
+  end
 end

@@ -7,9 +7,36 @@ defmodule ShellWords do
   globbing, or comments.
   """
 
+  alias ShellWords.ParseError
+
   # Exactly Python shlex.quote's safe set. Anything outside it (including all
   # whitespace, control characters, and non-ASCII bytes) forces quoting.
   @safe_chars ~c(ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@%+=:,./_-)
+
+  @doc """
+  Splits a shell-like command string into a list of words.
+
+  Returns `{:ok, words}` or `{:error, %ShellWords.ParseError{}}`.
+
+  No options are supported yet; the `opts` argument exists to keep the arity
+  stable for future releases. Unknown options raise `ArgumentError`.
+
+  ## Examples
+
+      iex> ShellWords.split("ls -la /tmp")
+      {:ok, ["ls", "-la", "/tmp"]}
+
+      iex> ShellWords.split("")
+      {:ok, []}
+
+  """
+  @spec split(String.t(), keyword()) :: {:ok, [String.t()]} | {:error, ParseError.t()}
+  def split(input, opts \\ [])
+
+  def split(input, opts) when is_binary(input) and is_list(opts) do
+    validate_opts!(opts)
+    bare(input, 0, "", [], false)
+  end
 
   @doc """
   Escapes a string so a POSIX shell parses it back as a single word with the
@@ -66,4 +93,31 @@ defmodule ShellWords do
   defp safe_bare_word?(<<>>), do: true
   defp safe_bare_word?(<<c, rest::binary>>) when c in @safe_chars, do: safe_bare_word?(rest)
   defp safe_bare_word?(_), do: false
+
+  defp validate_opts!([]), do: :ok
+
+  defp validate_opts!([opt | _]) do
+    raise ArgumentError, "unknown option: #{inspect(opt)}"
+  end
+
+  # Word separators: exactly ASCII space, tab, newline, carriage return.
+  @whitespace ~c( \t\n\r)
+
+  # State: bare — outside any quotes.
+  # word is the word built so far; started? distinguishes "no word open"
+  # from "word open but currently empty" (needed for '' and "").
+  defp bare(<<>>, _pos, word, acc, started?) do
+    {:ok, Enum.reverse(finish_word(word, acc, started?))}
+  end
+
+  defp bare(<<c, rest::binary>>, pos, word, acc, started?) when c in @whitespace do
+    bare(rest, pos + 1, "", finish_word(word, acc, started?), false)
+  end
+
+  defp bare(<<c, rest::binary>>, pos, word, acc, _started?) do
+    bare(rest, pos + 1, <<word::binary, c>>, acc, true)
+  end
+
+  defp finish_word(_word, acc, false), do: acc
+  defp finish_word(word, acc, true), do: [word | acc]
 end
