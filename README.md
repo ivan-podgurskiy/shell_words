@@ -113,7 +113,7 @@ or PowerShell escaping.
 No command execution, pipes, redirects, variable expansion (`$HOME`),
 command substitution (`$(...)`), globbing (`*.txt`), tilde expansion,
 heredocs, or Bash-specific syntax. Comments are not parsed in v0.1.0: `#`
-is an ordinary character (a `comments:` option is planned). Backslash-newline
+is an ordinary character (a `comments:` option may be added in a future version). Backslash-newline
 line continuation is not supported. Behavior on invalid UTF-8 is
 unspecified.
 
