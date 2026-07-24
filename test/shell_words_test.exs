@@ -99,19 +99,53 @@ defmodule ShellWordsTest do
       assert ShellWords.split("caf\u00E9 \u00FCber") == {:ok, ["caf\u00E9", "\u00FCber"]}
     end
 
-    test "# is an ordinary character" do
+    test "# is an ordinary character by default" do
       assert ShellWords.split("echo hello # comment") ==
+               {:ok, ["echo", "hello", "#", "comment"]}
+    end
+
+    test "comments: true starts comments only at the start of a word" do
+      assert ShellWords.split("echo hello # comment", comments: true) ==
+               {:ok, ["echo", "hello"]}
+
+      assert ShellWords.split("echo hello#world", comments: true) ==
+               {:ok, ["echo", "hello#world"]}
+
+      assert ShellWords.split("# comment\nnext word", comments: true) ==
+               {:ok, ["next", "word"]}
+
+      assert ShellWords.split("echo\t# comment\nnext", comments: true) ==
+               {:ok, ["echo", "next"]}
+    end
+
+    test "quoted and escaped # characters do not start comments" do
+      assert ShellWords.split(~S(echo "# not a comment"), comments: true) ==
+               {:ok, ["echo", "# not a comment"]}
+
+      assert ShellWords.split(~S(echo '# not a comment'), comments: true) ==
+               {:ok, ["echo", "# not a comment"]}
+
+      assert ShellWords.split(~S(echo \#), comments: true) ==
+               {:ok, ["echo", "#"]}
+    end
+
+    test "comments: false preserves the v0.1.0 behavior explicitly" do
+      assert ShellWords.split("echo hello # comment", comments: false) ==
                {:ok, ["echo", "hello", "#", "comment"]}
     end
 
     test "unknown options raise ArgumentError" do
       assert_raise ArgumentError, fn ->
-        ShellWords.split("echo", comments: true)
+        ShellWords.split("echo", unknown: true)
       end
     end
 
     test "empty options list is accepted" do
       assert ShellWords.split("echo", []) == {:ok, ["echo"]}
+    end
+
+    test "invalid UTF-8 bytes are preserved by split/2" do
+      assert ShellWords.split(<<255, ?a, ?\s, ?b>>) == {:ok, [<<255, ?a>>, "b"]}
     end
   end
 
@@ -244,7 +278,7 @@ defmodule ShellWordsTest do
 
     test "propagates option validation" do
       assert_raise ArgumentError, fn ->
-        ShellWords.split!("echo", comments: true)
+        ShellWords.split!("echo", unknown: true)
       end
     end
   end

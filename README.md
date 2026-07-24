@@ -1,6 +1,8 @@
 # ShellWords
 
 [![CI](https://github.com/ivan-podgurskiy/shell_words/actions/workflows/ci.yml/badge.svg)](https://github.com/ivan-podgurskiy/shell_words/actions/workflows/ci.yml)
+[![Hex.pm](https://img.shields.io/hexpm/v/shell_words.svg)](https://hex.pm/packages/shell_words)
+[![HexDocs](https://img.shields.io/badge/hex-docs-blue.svg)](https://hexdocs.pm/shell_words)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 POSIX-like shell word splitting, escaping, and joining for Elixir — the
@@ -22,7 +24,7 @@ Add `shell_words` to your dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:shell_words, "~> 0.1.0"}
+    {:shell_words, "~> 0.2.0"}
   ]
 end
 ```
@@ -51,6 +53,17 @@ carriage return); single quotes (fully literal); double quotes with POSIX
 backslash semantics (`\` escapes `$`, `` ` ``, `"`, `\`; any other
 backslash sequence passes through literally); backslash escaping outside
 quotes; empty quoted words; adjacent segment concatenation.
+
+Comments are disabled by default. Pass `comments: true` to treat an
+unquoted, unescaped `#` as a comment starter only at the start of a word:
+
+```elixir
+ShellWords.split("echo hello # comment", comments: true)
+# {:ok, ["echo", "hello"]}
+
+ShellWords.split("echo hello#world", comments: true)
+# {:ok, ["echo", "hello#world"]}
+```
 
 ### split!/2
 
@@ -112,10 +125,9 @@ or PowerShell escaping.
 
 No command execution, pipes, redirects, variable expansion (`$HOME`),
 command substitution (`$(...)`), globbing (`*.txt`), tilde expansion,
-heredocs, or Bash-specific syntax. Comments are not parsed in v0.1.0: `#`
-is an ordinary character (a `comments:` option may be added in a future version). Backslash-newline
-line continuation is not supported. Behavior on invalid UTF-8 is
-unspecified.
+heredocs, or Bash-specific syntax. Backslash-newline line continuation is
+not supported; an escaped newline is preserved literally. `split/2`
+preserves invalid UTF-8 bytes instead of validating or rewriting them.
 
 ## Comparison with Python shlex and Ruby Shellwords
 

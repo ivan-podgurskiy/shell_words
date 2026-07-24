@@ -3,9 +3,9 @@
 Planned direction for `shell_words`. Dates are intentions, not promises;
 scope may shift based on feedback and real-world usage.
 
-## v0.1.0 — Initial release (current)
+## v0.1.0 — Initial release
 
-Status: complete, pending publication to Hex.
+Status: complete.
 
 - `split/2` and `split!/2` with POSIX-like word rules: whitespace
   separation, single quotes, double quotes with POSIX backslash semantics,
@@ -17,21 +17,20 @@ Status: complete, pending publication to Hex.
 - Property-tested round-trip guarantee:
   `split(join(argv)) == {:ok, argv}` for arbitrary valid-UTF-8 argv.
 
-## v0.2.0 — Comments and edge-case decisions
+## v0.2.0 — Comments and edge-case decisions (current)
 
+- Status: complete, pending publication to Hex.
 - `comments: true` option for `split/2` and `split!/2`. Semantics: an
   unquoted, unescaped `#` starts a comment only at the start of a word
   (start of input or immediately after unquoted whitespace); the comment
   runs to the next newline or end of input. `echo hello#world` does NOT
   start a comment; `echo hello #world` does. Default stays
   `comments: false`.
-- Decide and document invalid-UTF-8 handling: explicit error vs byte
-  pass-through (currently unspecified).
-- Decide and document backslash-newline continuation (currently a literal
-  newline outside quotes mid-input, `:trailing_escape` at end of input,
-  literal pass-through inside double quotes).
-- Compatibility test suite comparing outputs against Python `shlex` and
-  Ruby `Shellwords`.
+- Invalid UTF-8 handling documented as byte pass-through for `split/2`.
+- Backslash-newline behavior documented as literal preservation, not line
+  continuation.
+- Compatibility test suite compares supported outputs against Python `shlex`
+  and Ruby `Shellwords`.
 
 ## v1.0.0 — Stable API
 

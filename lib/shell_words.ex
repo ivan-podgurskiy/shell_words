@@ -21,7 +21,7 @@ defmodule ShellWords do
 
   This is not a shell interpreter. There is no command execution, pipe or
   redirect handling, variable expansion, command substitution, globbing,
-  tilde expansion, or comment parsing. `#` is an ordinary character.
+  or tilde expansion. Comment parsing is opt-in with `comments: true`.
 
   Only POSIX-like shells are targeted; there is no Windows `cmd.exe` or
   PowerShell escaping.
@@ -44,9 +44,9 @@ defmodule ShellWords do
 
   Word separators are exactly ASCII space, tab, newline, and carriage
   return; Unicode whitespace is an ordinary character. Backslash-newline is
-  not line continuation: the newline is kept as a literal character. Error
-  positions are 0-based byte offsets. Behavior on invalid UTF-8 input is
-  unspecified and may change.
+  not line continuation: the newline is kept as a literal character. Invalid
+  UTF-8 bytes are preserved by `split/2`. Error positions are 0-based byte
+  offsets.
   """
 
   alias ShellWords.ParseError
@@ -60,8 +60,13 @@ defmodule ShellWords do
 
   Returns `{:ok, words}` or `{:error, %ShellWords.ParseError{}}`.
 
-  No options are supported yet; the `opts` argument exists to keep the arity
-  stable for future releases. Unknown options raise `ArgumentError`.
+  Supported options:
+
+    * `:comments` — when `true`, an unquoted, unescaped `#` starts a comment
+      only at the start of a word. The comment runs to the next newline or
+      the end of input. Defaults to `false`.
+
+  Unknown options raise `ArgumentError`.
 
   ## Examples
 
@@ -71,13 +76,17 @@ defmodule ShellWords do
       iex> ShellWords.split("")
       {:ok, []}
 
+      iex> ShellWords.split("echo hello # comment", comments: true)
+      {:ok, ["echo", "hello"]}
+
   """
   @spec split(String.t(), keyword()) :: {:ok, [String.t()]} | {:error, ParseError.t()}
   def split(input, opts \\ [])
 
   def split(input, opts) when is_binary(input) and is_list(opts) do
-    validate_opts!(opts)
-    bare(input, 0, "", [], false)
+    comments? = validate_opts!(opts)
+
+    bare(input, 0, "", [], false, comments?)
   end
 
   @doc """
@@ -154,9 +163,19 @@ defmodule ShellWords do
   defp safe_bare_word?(<<c, rest::binary>>) when c in @safe_chars, do: safe_bare_word?(rest)
   defp safe_bare_word?(_), do: false
 
-  defp validate_opts!([]), do: :ok
+  defp validate_opts!(opts), do: parse_opts(opts, false)
 
-  defp validate_opts!([opt | _]) do
+  defp parse_opts([], comments?), do: comments?
+
+  defp parse_opts([{:comments, comments?} | opts], _comments?) when is_boolean(comments?) do
+    parse_opts(opts, comments?)
+  end
+
+  defp parse_opts([{:comments, value} | _opts], _comments?) do
+    raise ArgumentError, "expected :comments to be a boolean, got: #{inspect(value)}"
+  end
+
+  defp parse_opts([opt | _opts], _comments?) do
     raise ArgumentError, "unknown option: #{inspect(opt)}"
   end
 
@@ -170,75 +189,85 @@ defmodule ShellWords do
   # State: bare — outside any quotes.
   # word is the word built so far; started? distinguishes "no word open"
   # from "word open but currently empty" (needed for '' and "").
-  defp bare(<<>>, _pos, word, acc, started?) do
+  defp bare(<<>>, _pos, word, acc, started?, _comments?) do
     {:ok, Enum.reverse(finish_word(word, acc, started?))}
   end
 
-  defp bare(<<"\\">>, pos, _word, _acc, _started?) do
+  defp bare(<<"\\">>, pos, _word, _acc, _started?, _comments?) do
     {:error, ParseError.new(:trailing_escape, pos)}
   end
 
-  defp bare(<<"\\", c, rest::binary>>, pos, word, acc, _started?) do
-    bare(rest, pos + 2, <<word::binary, c>>, acc, true)
+  defp bare(<<"\\", c, rest::binary>>, pos, word, acc, _started?, comments?) do
+    bare(rest, pos + 2, <<word::binary, c>>, acc, true, comments?)
   end
 
-  defp bare(<<"'", rest::binary>>, pos, word, acc, _started?) do
-    single(rest, pos + 1, pos, word, acc)
+  defp bare(<<"'", rest::binary>>, pos, word, acc, _started?, comments?) do
+    single(rest, pos + 1, pos, word, acc, comments?)
   end
 
-  defp bare(<<"\"", rest::binary>>, pos, word, acc, _started?) do
-    double(rest, pos + 1, pos, word, acc)
+  defp bare(<<"\"", rest::binary>>, pos, word, acc, _started?, comments?) do
+    double(rest, pos + 1, pos, word, acc, comments?)
   end
 
-  defp bare(<<c, rest::binary>>, pos, word, acc, started?) when c in @whitespace do
-    bare(rest, pos + 1, "", finish_word(word, acc, started?), false)
+  defp bare(<<"#", rest::binary>>, pos, word, acc, false, true) do
+    {rest, pos} = skip_comment(rest, pos + 1)
+
+    bare(rest, pos, word, acc, false, true)
   end
 
-  defp bare(<<c, rest::binary>>, pos, word, acc, _started?) do
-    bare(rest, pos + 1, <<word::binary, c>>, acc, true)
+  defp bare(<<c, rest::binary>>, pos, word, acc, started?, comments?) when c in @whitespace do
+    bare(rest, pos + 1, "", finish_word(word, acc, started?), false, comments?)
+  end
+
+  defp bare(<<c, rest::binary>>, pos, word, acc, _started?, comments?) do
+    bare(rest, pos + 1, <<word::binary, c>>, acc, true, comments?)
   end
 
   # State: single — inside single quotes. Everything is literal until the
   # closing quote; open_pos is the offset of the opening quote.
-  defp single(<<>>, _pos, open_pos, _word, _acc) do
+  defp single(<<>>, _pos, open_pos, _word, _acc, _comments?) do
     {:error, ParseError.new(:unterminated_single_quote, open_pos)}
   end
 
-  defp single(<<"'", rest::binary>>, pos, _open_pos, word, acc) do
-    bare(rest, pos + 1, word, acc, true)
+  defp single(<<"'", rest::binary>>, pos, _open_pos, word, acc, comments?) do
+    bare(rest, pos + 1, word, acc, true, comments?)
   end
 
-  defp single(<<c, rest::binary>>, pos, open_pos, word, acc) do
-    single(rest, pos + 1, open_pos, <<word::binary, c>>, acc)
+  defp single(<<c, rest::binary>>, pos, open_pos, word, acc, comments?) do
+    single(rest, pos + 1, open_pos, <<word::binary, c>>, acc, comments?)
   end
 
   # State: double — inside double quotes. Backslash escapes only
   # @dquote_escapable; any other backslash sequence passes through with the
   # backslash preserved. open_pos is the offset of the opening quote.
-  defp double(<<>>, _pos, open_pos, _word, _acc) do
+  defp double(<<>>, _pos, open_pos, _word, _acc, _comments?) do
     {:error, ParseError.new(:unterminated_double_quote, open_pos)}
   end
 
-  defp double(<<"\\">>, _pos, open_pos, _word, _acc) do
+  defp double(<<"\\">>, _pos, open_pos, _word, _acc, _comments?) do
     {:error, ParseError.new(:unterminated_double_quote, open_pos)}
   end
 
-  defp double(<<"\\", c, rest::binary>>, pos, open_pos, word, acc)
+  defp double(<<"\\", c, rest::binary>>, pos, open_pos, word, acc, comments?)
        when c in @dquote_escapable do
-    double(rest, pos + 2, open_pos, <<word::binary, c>>, acc)
+    double(rest, pos + 2, open_pos, <<word::binary, c>>, acc, comments?)
   end
 
-  defp double(<<"\\", c, rest::binary>>, pos, open_pos, word, acc) do
-    double(rest, pos + 2, open_pos, <<word::binary, ?\\, c>>, acc)
+  defp double(<<"\\", c, rest::binary>>, pos, open_pos, word, acc, comments?) do
+    double(rest, pos + 2, open_pos, <<word::binary, ?\\, c>>, acc, comments?)
   end
 
-  defp double(<<"\"", rest::binary>>, pos, _open_pos, word, acc) do
-    bare(rest, pos + 1, word, acc, true)
+  defp double(<<"\"", rest::binary>>, pos, _open_pos, word, acc, comments?) do
+    bare(rest, pos + 1, word, acc, true, comments?)
   end
 
-  defp double(<<c, rest::binary>>, pos, open_pos, word, acc) do
-    double(rest, pos + 1, open_pos, <<word::binary, c>>, acc)
+  defp double(<<c, rest::binary>>, pos, open_pos, word, acc, comments?) do
+    double(rest, pos + 1, open_pos, <<word::binary, c>>, acc, comments?)
   end
+
+  defp skip_comment(<<>>, pos), do: {<<>>, pos}
+  defp skip_comment(<<"\n", rest::binary>>, pos), do: {rest, pos + 1}
+  defp skip_comment(<<_c, rest::binary>>, pos), do: skip_comment(rest, pos + 1)
 
   defp finish_word(_word, acc, false), do: acc
   defp finish_word(word, acc, true), do: [word | acc]
