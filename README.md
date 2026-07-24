@@ -1,6 +1,8 @@
 # ShellWords
 
 [![CI](https://github.com/ivan-podgurskiy/shell_words/actions/workflows/ci.yml/badge.svg)](https://github.com/ivan-podgurskiy/shell_words/actions/workflows/ci.yml)
+[![Hex.pm](https://img.shields.io/hexpm/v/shell_words.svg)](https://hex.pm/packages/shell_words)
+[![HexDocs](https://img.shields.io/badge/hex-docs-blue.svg)](https://hexdocs.pm/shell_words)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 POSIX-like shell word splitting, escaping, and joining for Elixir — the
